@@ -1,0 +1,145 @@
+name: Action tests
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: node --test test/*.test.mjs
+      - run: npx --yes streamtrust@0.3.0 init .test-consumer
+        env:
+          npm_config_ignore_scripts: 'true'
+      - name: Passing published HTTP example
+        id: pass
+        uses: ./
+        with:
+          adapter: .test-consumer/adapter.mjs
+          output: reports/pass
+          artifact-name: pass-${{ matrix.os }}
+      - name: Verify pass outputs and summary
+        env:
+          CODE: ${{ steps.pass.outputs.exit-code }}
+          COUNT: ${{ steps.pass.outputs.pass-count }}
+          REPORT: ${{ steps.pass.outputs.report-path }}
+        run: |
+          test "$CODE" = 0
+          test "$COUNT" = 9
+          test -f "$REPORT"
+          # GITHUB_STEP_SUMMARY is per-step; the unit tests assert its actual content.
+          node -e "const r=JSON.parse(require('fs').readFileSync(process.env.REPORT));if(r.exitCode!==0)process.exit(1)"
+      - name: Download uploaded pass artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pass-${{ matrix.os }}
+          path: reports/downloaded
+      - run: cmp reports/pass/report.json reports/downloaded/report.json
+      - name: Deliberate failed check fails the action
+        id: fail
+        continue-on-error: true
+        uses: ./
+        with:
+          adapter: test/fixtures/fail.mjs
+          output: reports/fail
+          artifact-name: fail-${{ matrix.os }}
+      - name: Assert negative action outcome
+        env:
+          OUTCOME: ${{ steps.fail.outcome }}
+          CODE: ${{ steps.fail.outputs.exit-code }}
+        run: |
+          test "$OUTCOME" = failure
+          test "$CODE" = 1
+      - name: Failed checks report only
+        id: never
+        uses: ./
+        with:
+          adapter: test/fixtures/fail.mjs
+          output: reports/never
+          fail-on: never
+          upload-report: 'false'
+      - name: Failed checks tolerated under errors policy
+        uses: ./
+        with:
+          adapter: test/fixtures/fail.mjs
+          output: reports/errors-policy
+          fail-on: errors
+          upload-report: 'false'
+      - name: Unsupported stays exit 1
+        id: unsupported
+        uses: ./
+        with:
+          adapter: test/fixtures/unsupported.mjs
+          output: reports/unsupported
+          fail-on: never
+          upload-report: 'false'
+      - name: Missing adapter fails under errors policy
+        id: missing
+        continue-on-error: true
+        uses: ./
+        with:
+          adapter: does-not-exist.mjs
+          output: reports/missing
+          artifact-name: missing-${{ matrix.os }}
+          fail-on: errors
+      - name: Reject version range
+        id: range
+        continue-on-error: true
+        uses: ./
+        with:
+          adapter: test/fixtures/fail.mjs
+          version: '^0.3.0'
+          upload-report: 'false'
+      - name: Shell metacharacters are a literal adapter filename
+        id: injection
+        uses: ./
+        with:
+          adapter: 'absent;$(touch INJECTED)`touch ALSO_INJECTED`.mjs'
+          output: reports/injection
+          fail-on: never
+          upload-report: 'false'
+      - name: Assert all policy and input results
+        env:
+          NEVER: ${{ steps.never.outputs.exit-code }}
+          UNSUPPORTED: ${{ steps.unsupported.outputs.exit-code }}
+          MISSING: ${{ steps.missing.outputs.exit-code }}
+          MISSING_OUTCOME: ${{ steps.missing.outcome }}
+          RANGE: ${{ steps.range.outputs.exit-code }}
+          RANGE_OUTCOME: ${{ steps.range.outcome }}
+          INJECTION: ${{ steps.injection.outputs.exit-code }}
+        run: |
+          test "$NEVER" = 1
+          test "$UNSUPPORTED" = 1
+          test "$MISSING" = 2
+          test "$MISSING_OUTCOME" = failure
+          test "$RANGE" = 2
+          test "$RANGE_OUTCOME" = failure
+          test "$INJECTION" = 2
+          test ! -e INJECTED
+          test ! -e ALSO_INJECTED
+      - name: Reject Node below 22
+        id: oldnode
+        continue-on-error: true
+        uses: ./
+        with:
+          adapter: test/fixtures/fail.mjs
+          node-version: '20'
+          upload-report: 'false'
+      - name: Assert Node rejection
+        env:
+          CODE: ${{ steps.oldnode.outputs.exit-code }}
+          OUTCOME: ${{ steps.oldnode.outcome }}
+        run: |
+          test "$CODE" = 2
+          test "$OUTCOME" = failure

@@ -1,0 +1,115 @@
+name: StreamTrust CI Verifier
+description: Run StreamTrust lifecycle checks and publish diagnostic reports in CI.
+author: StreamTrust contributors
+branding:
+  icon: check-circle
+  color: blue
+inputs:
+  adapter:
+    description: Trusted adapter path, relative to working-directory.
+    required: true
+  version:
+    description: Exact StreamTrust npm version, or explicit latest opt-in.
+    default: '0.3.0'
+  working-directory:
+    description: Directory to run in, relative to the workspace.
+    default: '.'
+  output:
+    description: New or empty report directory inside working-directory.
+    default: reports/streamtrust
+  repetitions:
+    description: Repetitions per scenario (1-1000).
+    default: '3'
+  timeout-ms:
+    description: CLI deadline including setup and cleanup (100-86400000 ms).
+    default: '300000'
+  node-version:
+    description: Optional setup-node version; otherwise use Node on PATH (22+).
+    default: ''
+  upload-report:
+    description: Upload report directory (true or false).
+    default: 'true'
+  artifact-name:
+    description: Unique artifact name (letters, digits, dots, underscores, hyphens).
+    default: streamtrust-report
+  fail-on:
+    description: 'failures: fail on 1/2; errors: fail on 2; never: report only.'
+    default: failures
+outputs:
+  exit-code:
+    description: Effective verifier exit code (0, 1, or 2).
+    value: ${{ steps.verify.outputs.exit-code }}
+  report-path:
+    description: Absolute path to validated report.json; empty if unavailable.
+    value: ${{ steps.verify.outputs.report-path }}
+  pass-count:
+    description: PASS scenario executions; empty if no valid report.
+    value: ${{ steps.verify.outputs.pass-count }}
+  fail-count:
+    description: FAIL scenario executions; empty if no valid report.
+    value: ${{ steps.verify.outputs.fail-count }}
+  unsupported-count:
+    description: UNSUPPORTED scenario executions; empty if no valid report.
+    value: ${{ steps.verify.outputs.unsupported-count }}
+  harness-error-count:
+    description: HARNESS_ERROR scenario executions (excludes suite errors).
+    value: ${{ steps.verify.outputs.harness-error-count }}
+runs:
+  using: composite
+  steps:
+    - name: Set up Node (optional)
+      if: ${{ inputs.node-version != '' }}
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        package-manager-cache: 'false'
+    - name: Run StreamTrust and write summary
+      id: verify
+      shell: bash
+      env:
+        ST_ACTION_PATH: ${{ github.action_path }}
+        ST_ADAPTER: ${{ inputs.adapter }}
+        ST_VERSION: ${{ inputs.version }}
+        ST_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        ST_OUTPUT: ${{ inputs.output }}
+        ST_REPETITIONS: ${{ inputs.repetitions }}
+        ST_TIMEOUT_MS: ${{ inputs.timeout-ms }}
+        ST_UPLOAD_REPORT: ${{ inputs.upload-report }}
+        ST_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        ST_FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        if ! command -v node >/dev/null 2>&1; then
+          echo 'StreamTrust requires Node.js 22 or newer; set node-version: "22".' >&2
+          echo 'exit-code=2' >> "$GITHUB_OUTPUT"
+          echo '## StreamTrust: HARNESS ERROR - Node.js is missing. Set node-version: "22".' >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        if ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)'; then
+          echo 'StreamTrust requires Node.js 22 or newer; set node-version: "22".' >&2
+          echo 'exit-code=2' >> "$GITHUB_OUTPUT"
+          echo '## StreamTrust: HARNESS ERROR - Node.js is below 22. Set node-version: "22".' >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        node "$ST_ACTION_PATH/summary.mjs" run
+    - name: Upload StreamTrust report
+      if: ${{ always() && inputs.upload-report == 'true' && steps.verify.outputs.upload-path != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.verify.outputs.upload-path }}
+        if-no-files-found: warn
+        include-hidden-files: 'false'
+        retention-days: 7
+    - name: Apply failure policy
+      if: ${{ always() }}
+      shell: bash
+      env:
+        ST_EXIT_CODE: ${{ steps.verify.outputs.exit-code }}
+        ST_FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        case "$ST_FAIL_ON" in
+          never) exit 0 ;;
+          errors) [ "$ST_EXIT_CODE" = '0' ] || [ "$ST_EXIT_CODE" = '1' ] ;;
+          failures) [ "$ST_EXIT_CODE" = '0' ] ;;
+          *) echo 'Invalid fail-on: expected failures, errors, or never.' >&2; exit 2 ;;
+        esac

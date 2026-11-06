@@ -1,0 +1,26 @@
+# Manual only: this workflow MUST finish red. It proves job-level propagation.
+name: Expected failure smoke test
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  expected-failure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+        with:
+          node-version: '22'
+          adapter: test/fixtures/fail.mjs
+          fail-on: failures
+  assert-failed-job:
+    if: always()
+    needs: expected-failure
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULT: ${{ needs.expected-failure.result }}
+        run: test "$RESULT" = failure
