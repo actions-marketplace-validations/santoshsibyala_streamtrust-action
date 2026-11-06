@@ -4,6 +4,10 @@ Run StreamTrust checks against your streaming application's trusted adapter, see
 
 **Action version: v1.0.0.** Use `@v1` for compatible Action updates or pin `@v1.0.0` for this release. The default StreamTrust CLI version is pinned independently to `0.3.0`.
 
+**Compatibility:** Ubuntu and macOS tested; Windows not supported.
+
+**Versioning:** `v1` receives compatible Action updates; breaking changes go to `v2`. Pin `@v1.0.0` for the exact Action release; the CLI version is selected separately with `version`.
+
 ## Quick start
 
 After checking out your repository, installing your app/adapter dependencies and starting any required test services, add:
@@ -126,7 +130,7 @@ Adapters execute **trusted local code from your repository**, with the job's fil
 
 Inputs reach the wrapper through environment variables. The wrapper invokes `npx` with an argument array and `shell: false`, disables npm install scripts, and never prints the environment. The summary has no dependencies or telemetry. The wrapper performs no independent network requests: npm retrieves the requested package, optional setup-node can retrieve Node, and upload-artifact sends reports to GitHub. Adapters can make their own application requests. Set `upload-report: 'false'` and preinstall Node to avoid the optional setup/upload operations.
 
-All third-party action references are pinned to full commit SHAs. The intended hosted targets are `ubuntu-latest` and `macos-latest`. Local and hosted validation status is recorded in [TEST-RESULTS.md](TEST-RESULTS.md). Windows and GitHub Enterprise Server are not validated; the artifact action targets GitHub.com. Self-hosted runners must support the pinned actions' Node 24 runtime as well as Node 22+ for StreamTrust.
+All third-party action references are pinned to full commit SHAs. The intended hosted targets are `ubuntu-latest` and `macos-latest`. Local and hosted validation status is recorded in [TEST-RESULTS.md](TEST-RESULTS.md). Windows is not supported; GitHub Enterprise Server is not validated; the artifact action targets GitHub.com. Self-hosted runners must support the pinned actions' Node 24 runtime as well as Node 22+ for StreamTrust.
 
 ## Development
 
