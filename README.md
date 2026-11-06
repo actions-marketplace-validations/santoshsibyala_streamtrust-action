@@ -116,7 +116,9 @@ The CLI writes `report.json`, `junit.xml`, `report.md` and `index.html`. The art
 
 The job summary shows the CLI version, exit-code meaning, counts and a scenario/repetition/status table (up to 500 rows). Scenario text is escaped. Raw evidence, metadata, individual check names and raw suite errors are omitted. The full report supplies those details.
 
-> Screenshot placeholder: add a screenshot of a real successful GitHub job summary after hosted validation. No screenshot is fabricated for this local preparation.
+![Successful Ubuntu and macOS tests with a StreamTrust job summary](docs/github-tests.png)
+
+[View the real hosted run and complete summaries](https://github.com/santoshsibyala/streamtrust-action/actions/runs/42166185853).
 
 ## Security and compatibility
 

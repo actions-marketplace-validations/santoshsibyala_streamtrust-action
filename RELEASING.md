@@ -1,6 +1,6 @@
 # Review and release instructions
 
-The source repository is public. Complete hosted validation before publishing v1.0.0 or listing on Marketplace.
+The source repository is public. Ubuntu/macOS validation is recorded in TEST-RESULTS.md. Review that record before publishing v1.0.0 or listing on Marketplace.
 
 ## Repository and Marketplace decision
 
@@ -50,7 +50,7 @@ gh run view NEGATIVE_RUN_ID --repo santoshsibyala/streamtrust-action --web
 
 This manual workflow MUST be red: `expected-failure` fails and `assert-failed-job` passes. The failed job must still have a summary and an uploaded report. A green run is a regression. Do not make this deliberately red workflow a required branch check.
 
-Update TEST-RESULTS.md with run URLs and add a real summary screenshot. Remove the README's unreleased notice and date the changelog once tests pass, then commit and push those changes. Do not claim Linux/macOS hosted validation from local tests alone.
+Update TEST-RESULTS.md and the summary screenshot if subsequent code changes require new validation. Remove the README's unreleased notice and date the changelog once tests pass, then commit and push those changes. Do not claim Linux/macOS hosted validation from local tests alone.
 
 ## 3. Tag and draft the release
 

@@ -26,11 +26,18 @@ Ruby's installed YAML parser successfully parsed action.yml and both workflows. 
 
 The first npm test attempt inside the restricted network environment failed with ENOTFOUND. The authorized network-enabled rerun passed; the final run exercised the actual composite shell. No StreamTrust core files were changed.
 
-## Not executed yet
+## Hosted validation completed
 
-- `act` is not installed. The local Docker cache has no appropriate GitHub Actions runner image; no extra runner image or test framework was downloaded.
-- GitHub-hosted Ubuntu/macOS workflows have not run: the action repository has intentionally not been created.
-- Artifact upload/download, GitHub's rendered summary, composite output plumbing, optional setup-node download and actual job-status propagation therefore remain **pending hosted validation**.
-- Windows is not validated.
+Both jobs passed in [Action tests #1](https://github.com/santoshsibyala/streamtrust-action/actions/runs/42166185853), at commit `03435d3f631a328d83e096c081e3d5d6256bbcc1`:
 
-Run `.github/workflows/test.yml` on GitHub and require both OS jobs to pass. Then run `expected-failure.yml`: the negative job must fail, its assertion job must pass, and the overall workflow must be red. See RELEASING.md for exact commands and artifact checks. Record run URLs here before releasing v1.0.0.
+- [Ubuntu job](https://github.com/santoshsibyala/streamtrust-action/actions/runs/42166185853/job/127723098371): success.
+- [macOS job](https://github.com/santoshsibyala/streamtrust-action/actions/runs/42166185853/job/127723098192): success.
+- Both ran all 11 unit tests, the published HTTP adapter (9 PASS scenario executions), the failure-policy/unsupported/harness-error cases, version-range rejection, shell-metacharacter input and actual Node 20 rejection.
+- Both uploaded and downloaded the passing artifact and compared report.json byte-for-byte. Six artifacts were confirmed: pass, fail and missing-adapter reports for each OS.
+- Rendered GitHub summaries were inspected: version, counts, scenario tables and adapter-initialization/invalid-version/old-Node diagnostics are visible.
+
+[Expected failure smoke test #1](https://github.com/santoshsibyala/streamtrust-action/actions/runs/42166279626) also behaved correctly: `expected-failure` failed, `assert-failed-job` succeeded, and the `streamtrust-report` artifact was retained. The overall workflow is intentionally red. This demonstrates failure propagation without continue-on-error on the negative job.
+
+The ordinary test workflow has expected error annotations from its negative controls; explicit assertions verify those failures, and both overall jobs are green. This is not evidence of a production application defect.
+
+Artifacts expire after seven days. Workflow links, this record and the README screenshot preserve the validation context. Windows and GitHub Enterprise Server remain unvalidated. No v1.0.0/v1 tags or Marketplace release have been published.
