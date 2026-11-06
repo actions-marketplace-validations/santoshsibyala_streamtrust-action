@@ -2,7 +2,7 @@
 
 Run StreamTrust checks against your streaming application's trusted adapter, see results in the job summary, and retain diagnostic reports. This composite action wraps the published CLI without changing its checks or report format.
 
-**Pre-release: v1.0.0, the v1 tag and Marketplace listing are not published yet.** The examples using `@v1` become usable after the release steps in [RELEASING.md](RELEASING.md).
+**Action version: v1.0.0.** Use `@v1` for compatible Action updates or pin `@v1.0.0` for this release. The default StreamTrust CLI version is pinned independently to `0.3.0`.
 
 ## Quick start
 

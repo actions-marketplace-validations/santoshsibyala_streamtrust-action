@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.0.0 (prepared, unreleased)
+## v1.0.0 - 2026-11-05
 
 - Composite wrapper around pinned StreamTrust 0.3.0.
 - Optional Node setup, validated inputs, argument-array CLI invocation.

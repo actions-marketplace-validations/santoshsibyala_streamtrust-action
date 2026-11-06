@@ -40,4 +40,4 @@ Both jobs passed in [Action tests #1](https://github.com/santoshsibyala/streamtr
 
 The ordinary test workflow has expected error annotations from its negative controls; explicit assertions verify those failures, and both overall jobs are green. This is not evidence of a production application defect.
 
-Artifacts expire after seven days. Workflow links, this record and the README screenshot preserve the validation context. Windows and GitHub Enterprise Server remain unvalidated. No v1.0.0/v1 tags or Marketplace release have been published.
+Artifacts expire after seven days. Workflow links, this record and the README screenshot preserve the validation context. Windows and GitHub Enterprise Server remain unvalidated. This validation was completed before publishing the v1.0.0/v1 tags or Marketplace release.
