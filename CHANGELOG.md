@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.1
+
+- Default to StreamTrust CLI 0.5.0.
+- Reject Windows runners before Node setup and report npm installation failures with the requested version and exit code 2.
+- Set the Action author to Santosh Sibyala.
+
 ## v1.0.0 - 2026-11-05
 
 - Composite wrapper around pinned StreamTrust 0.3.0.
