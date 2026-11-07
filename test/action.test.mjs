@@ -14,7 +14,7 @@ function environment(t) {
     GITHUB_STEP_SUMMARY: resolve(cwd, 'summary'), ST_ADAPTER: 'adapter.mjs' };
 }
 function report(code = 0, status = 'PASS') {
-  return { schemaVersion: 1, version: '0.3.0', runId: 'test-run', complete: true, exitCode: code,
+  return { schemaVersion: 1, version: '0.5.0', runId: 'test-run', complete: true, exitCode: code,
     suiteErrors: [], counts: { [status]: 1 }, results: [{ scenario: 'persistence', repetition: 1, classification: status, checks: [] }] };
 }
 function fake(reportValue, status = reportValue?.exitCode ?? 2) {
@@ -25,18 +25,18 @@ function fake(reportValue, status = reportValue?.exitCode ?? 2) {
 }
 test('default pin, numeric limits, and Node minimum', t => {
   const env = environment(t);
-  assert.equal(inputs(env).version, '0.3.0');
+  assert.equal(inputs(env).version, '0.5.0');
   assert.throws(() => inputs(env, '20.19.0'), /22 or newer/);
-  for (const version of ['^0.3.0','~0.3.0','*','next','github:other/repo','0.3','01.2.3','0.3.0; touch nope'])
+  for (const version of ['^0.5.0','~0.5.0','*','next','github:other/repo','0.3','01.2.3','0.5.0; touch nope'])
     assert.throws(() => inputs({...env, ST_VERSION: version}), /exact npm version/);
-  for (const version of ['0.3.0','1.0.0-rc.1','latest']) assert.equal(inputs({...env, ST_VERSION: version}).version, version);
+  for (const version of ['0.5.0','1.0.0-rc.1','latest']) assert.equal(inputs({...env, ST_VERSION: version}).version, version);
   for (const [key,value] of [['ST_REPETITIONS','0'],['ST_REPETITIONS','1001'],['ST_TIMEOUT_MS','99'],['ST_TIMEOUT_MS','86400001'],['ST_TIMEOUT_MS','1e3']])
     assert.throws(() => inputs({...env, [key]:value}));
   for (const [key,value] of [['ST_UPLOAD_REPORT','yes'],['ST_FAIL_ON','sometimes'],['ST_ARTIFACT_NAME','../bad']])
     assert.throws(() => inputs({...env, [key]:value}));
 });
 const actionText = readFileSync(new URL('../action.yml', import.meta.url), 'utf8');
-const shellBlocks = actionText.split('      run: |\n').slice(1).map(block => {
+const shellBlocks = actionText.slice(actionText.indexOf('    - name: Run StreamTrust')).split('      run: |\n').slice(1).map(block => {
   const lines=[];
   for (const line of block.split('\n')) {
     if (line && !line.startsWith('        ')) break;
@@ -116,7 +116,7 @@ test('installation/process failure yields a summary and exit 2', t => {
 test('summary escapes scenario Markdown and omits sensitive evidence/errors', () => {
   const r=report(); r.results[0].scenario='<img src=x>|[secret](https://example.com)\n# bad';
   r.results[0].evidence={token:'PRIVATE_VALUE'}; r.suiteErrors=['PRIVATE_ERROR']; r.exitCode=2;
-  const counts=validateReport(r,2,'0.3.0');
+  const counts=validateReport(r,2,'0.5.0');
   const md=renderSummary({code:2,report:r,counts});
   assert.ok(!md.includes('<img')); assert.ok(!md.includes('PRIVATE_')); assert.match(md,/Suite errors: 1/);
 });
@@ -126,4 +126,17 @@ test('explicit latest reports resolved version; suite errors are not row counts'
   const out=run(env,fake(r));
   assert.equal(out['harness-error-count'],'0'); assert.equal(out['exit-code'],'2');
   assert.match(readFileSync(env.GITHUB_STEP_SUMMARY,'utf8'),/0.4.0/);
+});
+
+test('npm registry failure produces a safe install diagnostic in the log and summary', t => {
+  const env = { ...environment(t), ST_VERSION: '99.99.99' };
+  const log = t.mock.method(console, 'error', () => {});
+  const out = run(env, () => ({status: 1, stderr: 'npm error code ENOTFOUND\nnpm error https://SECRET@example.com'}));
+  const summary = readFileSync(env.GITHUB_STEP_SUMMARY, 'utf8');
+  assert.equal(out['exit-code'], '2');
+  assert.equal(out['upload-path'], '');
+  assert.match(summary, /package could not be installed .*99\.99\.99/);
+  assert.doesNotMatch(summary, /SECRET|report\.json is missing/);
+  assert.deepEqual(log.mock.calls[0].arguments, ['StreamTrust Action: ' + out.diagnostic]);
+  assert.ok(!out.diagnostic.includes('SECRET'));
 });

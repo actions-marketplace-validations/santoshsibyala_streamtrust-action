@@ -1,6 +1,6 @@
 name: StreamTrust CI Verifier
 description: Run StreamTrust lifecycle checks and publish diagnostic reports in CI.
-author: StreamTrust contributors
+author: 'Santosh Sibyala'
 branding:
   icon: check-circle
   color: blue
@@ -10,7 +10,7 @@ inputs:
     required: true
   version:
     description: Exact StreamTrust npm version, or explicit latest opt-in.
-    default: '0.3.0'
+    default: '0.5.0'
   working-directory:
     description: Directory to run in, relative to the workspace.
     default: '.'
@@ -36,9 +36,12 @@ inputs:
     description: 'failures: fail on 1/2; errors: fail on 2; never: report only.'
     default: failures
 outputs:
+  diagnostic:
+    description: Safe Action error message, if available.
+    value: ${{ steps.platform.outputs.diagnostic || steps.verify.outputs.diagnostic }}
   exit-code:
     description: Effective verifier exit code (0, 1, or 2).
-    value: ${{ steps.verify.outputs.exit-code }}
+    value: ${{ steps.platform.outputs.exit-code || steps.verify.outputs.exit-code }}
   report-path:
     description: Absolute path to validated report.json; empty if unavailable.
     value: ${{ steps.verify.outputs.report-path }}
@@ -57,6 +60,17 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Check runner compatibility
+      id: platform
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $message = "StreamTrust's Action supports Ubuntu and macOS runners; Windows is not supported."
+        "diagnostic=$message" >> $env:GITHUB_OUTPUT
+        "exit-code=2" >> $env:GITHUB_OUTPUT
+        $message >> $env:GITHUB_STEP_SUMMARY
+        Write-Error $message
+        exit 2
     - name: Set up Node (optional)
       if: ${{ inputs.node-version != '' }}
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -101,7 +115,7 @@ runs:
         include-hidden-files: 'false'
         retention-days: 7
     - name: Apply failure policy
-      if: ${{ always() }}
+      if: ${{ always() && runner.os != 'Windows' }}
       shell: bash
       env:
         ST_EXIT_CODE: ${{ steps.verify.outputs.exit-code }}

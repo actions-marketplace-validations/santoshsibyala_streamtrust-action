@@ -1,5 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { openSync, closeSync, unlinkSync, readSync, fstatSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { resolve, relative, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -13,9 +16,9 @@ const object = value => value !== null && typeof value === 'object' && !Array.is
 export function inputs(env, nodeVersion = process.versions.node) {
   if (Number(nodeVersion.split('.')[0]) < 22) throw new Error('StreamTrust requires Node.js 22 or newer. Set node-version: "22" (or newer).');
   const get = (key, fallback) => env[`ST_${key}`] ?? fallback;
-  const version = get('VERSION', '0.3.0');
+  const version = get('VERSION', '0.5.0');
   // "latest" is an explicit, documented opt-in; no other tags/ranges/specifiers.
-  if (!exactVersion.test(version) && version !== 'latest') throw new Error('version must be an exact npm version (for example 0.3.0); only explicit latest is also allowed. Ranges are rejected.');
+  if (!exactVersion.test(version) && version !== 'latest') throw new Error('version must be an exact npm version (for example 0.5.0); only explicit latest is also allowed. Ranges are rejected.');
   const policy = get('FAIL_ON', 'failures');
   if (!['failures', 'errors', 'never'].includes(policy)) throw new Error('fail-on must be failures, errors, or never.');
   const upload = get('UPLOAD_REPORT', 'true');
@@ -83,7 +86,23 @@ export function renderSummary({ code, report, counts, diagnostic, version }) {
   return md + '\nCounts are scenario executions, not individual assertions. Raw evidence, metadata, and error strings are omitted from this summary.\n';
 }
 
-export function run(env = process.env, execute = spawnSync) {
+// Capture stderr privately. A verbose verifier must not exceed spawnSync's pipe buffer.
+function executeNpx(command, args, options) {
+  const path = resolve(tmpdir(), 'streamtrust-npx-' + randomUUID());
+  const fd = openSync(path, 'wx+', 0o600);
+  try {
+    unlinkSync(path);
+    const child = spawnSync(command, args, { ...options, stdio: ['inherit', 'inherit', fd] });
+    const size = fstatSync(fd).size;
+    const tail = Buffer.alloc(Math.min(size, 65536));
+    readSync(fd, tail, 0, tail.length, size - tail.length);
+    return { ...child, stderr: tail.toString() };
+  } finally {
+    closeSync(fd);
+  }
+}
+
+export function run(env = process.env, execute = executeNpx) {
   let config, report, counts, diagnostic, uploadPath = '', code = 2;
   try {
     config = inputs(env);
@@ -96,6 +115,12 @@ export function run(env = process.env, execute = spawnSync) {
       cwd: config.cwd, env: { ...env, npm_config_ignore_scripts: 'true', npm_config_audit: 'false', npm_config_fund: 'false' },
       stdio: 'inherit', shell: false,
     });
+    // A valid verifier failure can also exit 1 or 2. Prefer its report.
+    if (child.status && !existsSync(resolve(config.directory, 'report.json')) &&
+        /^npm (?:error|ERR!) code [A-Z][A-Z0-9_]*\s*$/im.test(child.stderr ?? '')) {
+      uploadPath = '';
+      throw new Error(`StreamTrust package could not be installed (requested version: ${config.version}).`);
+    }
     if (child.error || child.signal || ![0, 1, 2].includes(child.status)) throw new Error('npm/CLI did not finish with a supported exit code; inspect the step log.');
     code = child.status;
     try { report = JSON.parse(readFileSync(resolve(config.directory, 'report.json'), 'utf8')); }
@@ -109,6 +134,7 @@ export function run(env = process.env, execute = spawnSync) {
     console.error(`StreamTrust Action: ${clean(diagnostic)}`);
   }
   const outputs = {
+    diagnostic: diagnostic ? clean(diagnostic) : '',
     'exit-code': String(code), 'report-path': report ? resolve(config.directory, 'report.json') : '',
     'pass-count': counts ? String(counts.PASS) : '', 'fail-count': counts ? String(counts.FAIL) : '',
     'unsupported-count': counts ? String(counts.UNSUPPORTED) : '', 'harness-error-count': counts ? String(counts.HARNESS_ERROR) : '',
