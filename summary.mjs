@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdir
 import { openSync, closeSync, unlinkSync, readSync, fstatSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { resolve, relative, sep } from 'node:path';
+import { dirname, isAbsolute, resolve, relative, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const statuses = ['PASS', 'FAIL', 'UNSUPPORTED', 'HARNESS_ERROR'];
@@ -16,11 +16,13 @@ const object = value => value !== null && typeof value === 'object' && !Array.is
 export function inputs(env, nodeVersion = process.versions.node) {
   if (Number(nodeVersion.split('.')[0]) < 22) throw new Error('StreamTrust requires Node.js 22 or newer. Set node-version: "22" (or newer).');
   const get = (key, fallback) => env[`ST_${key}`] ?? fallback;
-  const version = get('VERSION', '0.5.0');
+  const version = get('VERSION', '0.6.1');
   // "latest" is an explicit, documented opt-in; no other tags/ranges/specifiers.
-  if (!exactVersion.test(version) && version !== 'latest') throw new Error('version must be an exact npm version (for example 0.5.0); only explicit latest is also allowed. Ranges are rejected.');
+  if (!exactVersion.test(version) && version !== 'latest') throw new Error('version must be an exact npm version (for example 0.6.1); only explicit latest is also allowed. Ranges are rejected.');
   const policy = get('FAIL_ON', 'failures');
   if (!['failures', 'errors', 'never'].includes(policy)) throw new Error('fail-on must be failures, errors, or never.');
+  const install = get('INSTALL_DEPENDENCIES', 'false');
+  if (!['true', 'false'].includes(install)) throw new Error('install-dependencies must be true or false.');
   const upload = get('UPLOAD_REPORT', 'true');
   if (!['true', 'false'].includes(upload)) throw new Error('upload-report must be true or false.');
   const artifact = get('ARTIFACT_NAME', 'streamtrust-report');
@@ -47,7 +49,7 @@ export function inputs(env, nodeVersion = process.versions.node) {
     if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < min || Number(value) > max) throw new Error(`${key.toLowerCase().replaceAll('_', '-')} must be ${min}-${max}.`);
     return value;
   };
-  return { version, policy, cwd, directory, adapter: resolve(cwd, adapter),
+  return { version, policy, install: install === 'true', cwd, directory, adapter: resolve(cwd, adapter),
     repetitions: integer('REPETITIONS', '3', 1, 1000), timeout: integer('TIMEOUT_MS', '300000', 100, 86400000) };
 }
 
@@ -102,10 +104,29 @@ function executeNpx(command, args, options) {
   }
 }
 
+function installDependencies(config, env) {
+  const folder = realpathSync(dirname(config.adapter));
+  const rel = relative(realpathSync(env.GITHUB_WORKSPACE || process.cwd()), folder);
+  if (rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel))
+    throw new Error('Dependency installation requires an adapter folder inside the workspace.');
+  const file = resolve(folder, 'package.json');
+  if (!existsSync(file)) return;
+  const manifest = JSON.parse(readFileSync(file, 'utf8'));
+  const options = { cwd: folder, env, stdio: 'inherit', shell: false };
+  if (spawnSync('npm', ['install', '--prefix', folder], options).status !== 0)
+    throw new Error('Could not install the adapter dependencies.');
+  if (manifest.dependencies?.playwright || manifest.devDependencies?.playwright) {
+    const cli = resolve(folder, 'node_modules/.bin/playwright');
+    if (spawnSync(cli, ['install', '--with-deps', 'chromium'], options).status !== 0)
+      throw new Error('Could not install Playwright Chromium for the adapter.');
+  }
+}
+
 export function run(env = process.env, execute = executeNpx) {
   let config, report, counts, diagnostic, uploadPath = '', code = 2;
   try {
     config = inputs(env);
+    if (config.install) installDependencies(config, env);
     mkdirSync(config.directory, { recursive: true });
     uploadPath = config.directory;
     // No shell, eval, or interpolated command string. Every argument stays one argument.

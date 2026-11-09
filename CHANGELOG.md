@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.0
+
+- Add opt-in installation of a generated browser adapter's dependencies and Chromium.
+- Default to StreamTrust 0.6.1. The CLI's 0.6.0 release renamed HTTP/SSE, NextChat and Open WebUI scenarios. Update filters using the [migration table](https://github.com/santoshsibyala/streamtrust/blob/v0.6.0/CHANGELOG.md#breaking-changes).
+
+
 ## v1.0.1
 
 - Default to StreamTrust CLI 0.5.0.

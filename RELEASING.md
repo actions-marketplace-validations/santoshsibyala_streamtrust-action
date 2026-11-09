@@ -1,5 +1,10 @@
 # Review and release instructions
 
+## v1.1.0 dependency and release order
+
+First confirm `npm view streamtrust@0.6.1 version` returns `0.6.1`. Then open the Action PR and check the published-package integration, generated-browser-adapter job, and platform tests. After merge, tag the reviewed merge commit as v1.1.0, move v1 to the same commit, and publish the Marketplace release.
+
+
 The source repository is public. Ubuntu/macOS validation is recorded in TEST-RESULTS.md. Review that record before publishing v1.0.0 or listing on Marketplace.
 
 ## Repository and Marketplace decision

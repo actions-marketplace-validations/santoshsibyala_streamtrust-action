@@ -14,7 +14,7 @@ function environment(t) {
     GITHUB_STEP_SUMMARY: resolve(cwd, 'summary'), ST_ADAPTER: 'adapter.mjs' };
 }
 function report(code = 0, status = 'PASS') {
-  return { schemaVersion: 1, version: '0.5.0', runId: 'test-run', complete: true, exitCode: code,
+  return { schemaVersion: 1, version: '0.6.1', runId: 'test-run', complete: true, exitCode: code,
     suiteErrors: [], counts: { [status]: 1 }, results: [{ scenario: 'persistence', repetition: 1, classification: status, checks: [] }] };
 }
 function fake(reportValue, status = reportValue?.exitCode ?? 2) {
@@ -25,11 +25,11 @@ function fake(reportValue, status = reportValue?.exitCode ?? 2) {
 }
 test('default pin, numeric limits, and Node minimum', t => {
   const env = environment(t);
-  assert.equal(inputs(env).version, '0.5.0');
+  assert.equal(inputs(env).version, '0.6.1');
   assert.throws(() => inputs(env, '20.19.0'), /22 or newer/);
-  for (const version of ['^0.5.0','~0.5.0','*','next','github:other/repo','0.3','01.2.3','0.5.0; touch nope'])
+  for (const version of ['^0.6.1','~0.6.1','*','next','github:other/repo','0.3','01.2.3','0.6.1; touch nope'])
     assert.throws(() => inputs({...env, ST_VERSION: version}), /exact npm version/);
-  for (const version of ['0.5.0','1.0.0-rc.1','latest']) assert.equal(inputs({...env, ST_VERSION: version}).version, version);
+  for (const version of ['0.6.1','1.0.0-rc.1','latest']) assert.equal(inputs({...env, ST_VERSION: version}).version, version);
   for (const [key,value] of [['ST_REPETITIONS','0'],['ST_REPETITIONS','1001'],['ST_TIMEOUT_MS','99'],['ST_TIMEOUT_MS','86400001'],['ST_TIMEOUT_MS','1e3']])
     assert.throws(() => inputs({...env, [key]:value}));
   for (const [key,value] of [['ST_UPLOAD_REPORT','yes'],['ST_FAIL_ON','sometimes'],['ST_ARTIFACT_NAME','../bad']])
@@ -116,7 +116,7 @@ test('installation/process failure yields a summary and exit 2', t => {
 test('summary escapes scenario Markdown and omits sensitive evidence/errors', () => {
   const r=report(); r.results[0].scenario='<img src=x>|[secret](https://example.com)\n# bad';
   r.results[0].evidence={token:'PRIVATE_VALUE'}; r.suiteErrors=['PRIVATE_ERROR']; r.exitCode=2;
-  const counts=validateReport(r,2,'0.5.0');
+  const counts=validateReport(r,2,'0.6.1');
   const md=renderSummary({code:2,report:r,counts});
   assert.ok(!md.includes('<img')); assert.ok(!md.includes('PRIVATE_')); assert.match(md,/Suite errors: 1/);
 });
@@ -139,4 +139,14 @@ test('npm registry failure produces a safe install diagnostic in the log and sum
   assert.doesNotMatch(summary, /SECRET|report\.json is missing/);
   assert.deepEqual(log.mock.calls[0].arguments, ['StreamTrust Action: ' + out.diagnostic]);
   assert.ok(!out.diagnostic.includes('SECRET'));
+});
+
+test('dependency installation is opt-in and restricted to the workspace', t => {
+  const env = environment(t);
+  assert.equal(inputs(env).install, false);
+  assert.throws(() => inputs({...env, ST_INSTALL_DEPENDENCIES: 'yes'}), /install-dependencies/);
+  const out = run({...env, ST_INSTALL_DEPENDENCIES: 'true', ST_ADAPTER:resolve(env.GITHUB_WORKSPACE, '../outside.mjs')},
+    () => assert.fail('should reject the install folder before running npm'));
+  assert.equal(out['exit-code'], '2');
+  assert.match(out.diagnostic, /inside the workspace/);
 });

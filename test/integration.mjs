@@ -10,7 +10,7 @@ const step=readFileSync(resolve(root,'action.yml'),'utf8').split('    - name: Ru
 const script=[];
 for (const line of step) { if (line && !line.startsWith('        ')) break; script.push(line.slice(8)); }
 const cwd=mkdtempSync(resolve(tmpdir(),'streamtrust-action-live-'));
-const init=spawnSync('npx',['--yes','streamtrust@0.5.0','init','http'],{cwd,stdio:'inherit',env:{...process.env,npm_config_ignore_scripts:'true'}});
+const init=spawnSync('npx',['--yes','streamtrust@0.6.1','init','http'],{cwd,stdio:'inherit',env:{...process.env,npm_config_ignore_scripts:'true'}});
 assert.equal(init.status,0,'published CLI init');
 copyFileSync(resolve(root,'test/fixtures/fail.mjs'),resolve(cwd,'fail.mjs'));
 copyFileSync(resolve(root,'test/fixtures/unsupported.mjs'),resolve(cwd,'unsupported.mjs'));
@@ -25,7 +25,7 @@ try {
     ['unsupported','unsupported.mjs','1',{}],
     ['missing','does-not-exist.mjs','2',{}],
     ['injection',injection,'1',{}],
-    ['range','fail.mjs','2',{ST_VERSION:'^0.5.0'}],
+    ['range','fail.mjs','2',{ST_VERSION:'^0.6.1'}],
   ]) {
     const env={...process.env,ST_ACTION_PATH:root,GITHUB_WORKSPACE:cwd,ST_ADAPTER:adapter,ST_OUTPUT:`reports/${name}`,ST_REPETITIONS:'1',
       GITHUB_OUTPUT:resolve(cwd,`${name}.outputs`),GITHUB_STEP_SUMMARY:resolve(cwd,`${name}.summary.md`),...extra};
