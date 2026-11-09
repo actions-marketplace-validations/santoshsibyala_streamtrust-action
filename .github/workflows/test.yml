@@ -22,7 +22,7 @@ jobs:
       - name: Verify real npm integration summaries
         if: runner.os == 'Linux'
         run: node test/integration.mjs
-      - run: npx --yes streamtrust@0.5.0 init .test-consumer
+      - run: npx --yes streamtrust@0.6.1 init .test-consumer
         env:
           npm_config_ignore_scripts: 'true'
       - name: Passing published HTTP example
@@ -42,7 +42,7 @@ jobs:
           test "$COUNT" = 9
           test -f "$REPORT"
           # GITHUB_STEP_SUMMARY is per-step; the unit tests assert its actual content.
-          node -e "const r=JSON.parse(require('fs').readFileSync(process.env.REPORT));if(r.exitCode!==0 || r.version!=='0.5.0')process.exit(1)"
+          node -e "const r=JSON.parse(require('fs').readFileSync(process.env.REPORT));if(r.exitCode!==0 || r.version!=='0.6.1')process.exit(1)"
       - name: Download uploaded pass artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -120,7 +120,7 @@ jobs:
         uses: ./
         with:
           adapter: test/fixtures/fail.mjs
-          version: '^0.5.0'
+          version: '^0.6.1'
           upload-report: 'false'
       - name: Shell metacharacters are a literal adapter filename
         id: injection
@@ -190,3 +190,36 @@ jobs:
               $env:MESSAGE -cne "StreamTrust's Action supports Ubuntu and macOS runners; Windows is not supported.") {
             throw 'Expected the Windows compatibility guard to fail the Action.'
           }
+
+  generated-browser-adapter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ChatGPTNextWeb/NextChat
+          ref: 1d3dc331512929a4b1d3e82354e72acce33b5c7a
+          path: upstream
+          persist-credentials: false
+      - run: npx --yes --package=yarn@1.22.22 -- yarn install --frozen-lockfile --ignore-scripts
+        working-directory: upstream
+      - run: npx --yes streamtrust@0.6.1 init nextchat
+      - uses: ./
+        id: verify
+        with:
+          adapter: nextchat/adapter.mjs
+          install-dependencies: 'true'
+          timeout-ms: '900000'
+          artifact-name: nextchat-browser
+        env:
+          STREAMTRUST_NEXTCHAT_ROOT: ${{ github.workspace }}/upstream
+      - run: test "$PASS" = 12
+        env:
+          PASS: ${{ steps.verify.outputs.pass-count }}
